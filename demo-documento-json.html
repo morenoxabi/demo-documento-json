@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procesamiento documental → JSON · Xabi Moreno</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--accent:#818cf8;--dark:#eceaff;--text:#c9c9d6;--muted:#8e8ea3;--bg:#101019;--card:#181826;--border:#2a2a3d;--ok:#4ade80;--bad:#f87171;--code:#0b0b13;--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.5;padding:30px 16px 60px}
+  .wrap{max-width:920px;margin:0 auto}
+  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:25px;color:var(--dark);margin:6px 0 6px;font-weight:700}
+  .lead{font-size:14px;color:var(--muted);max-width:680px}
+  .meta{font-size:12px;color:var(--muted);margin-top:8px}
+  .meta a{color:var(--accent);text-decoration:none}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+  @media(max-width:720px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin-bottom:10px}
+  textarea{width:100%;min-height:150px;border:1px solid var(--border);border-radius:10px;padding:11px;font-family:var(--mono);font-size:12.5px;color:var(--text);background:#10101c;resize:vertical}
+  .btn{margin-top:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer}
+  .btn:hover{filter:brightness(1.07)}
+  pre{background:var(--code);color:#e6e6f0;border-radius:10px;padding:13px;font-family:var(--mono);font-size:12.5px;overflow:auto;min-height:150px;white-space:pre-wrap;word-break:break-word}
+  .schema{background:#15152400;background:rgba(129,140,248,.06);border:1px dashed var(--accent);border-radius:12px;padding:14px;margin-top:22px}
+  .schema h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin-bottom:8px}
+  .schema textarea{min-height:120px;background:#10101c}
+  .checks{margin-top:22px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .checks h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin-bottom:10px}
+  .check{display:flex;gap:9px;align-items:flex-start;font-size:13px;padding:5px 0}
+  .check .mark{font-weight:700;width:16px;flex-shrink:0}
+  .ok{color:var(--ok)} .bad{color:var(--bad)}
+  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .live{margin-top:18px;font-size:13px}
+  .live input{border:1px solid var(--border);border-radius:8px;padding:8px;background:#10101c;color:var(--text);width:320px;max-width:100%;font-family:var(--mono);font-size:12px}
+  .live summary{cursor:pointer;color:var(--accent);font-weight:600}
+  footer{margin-top:28px;font-size:12px;color:var(--muted);text-align:center}
+  .todo{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:12px;border-radius:10px;padding:10px 12px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Demo · IA aplicada a procesamiento documental</div>
+  <h1>De texto desordenado a JSON validado</h1>
+  <p class="lead">Coge un documento sin estructura (un email, una factura, una nota) y devuelve datos limpios en un esquema fijo, con validaciones automáticas. La gracia no es que la IA "lo entienda", es forzarla a dar siempre la misma estructura fiable. Eso es prompt engineering aplicado.</p>
+  <div class="meta">Xabi Moreno · <a href="https://morenoxabi.github.io/PORTFOLIO">Portfolio</a></div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1 · Documento de entrada</h2>
+      <textarea id="input">buenas!! te escribo desde recepción q el sistema está caído. apúntame este pedido porfa: la clienta es Marta López (marta.lopez@correo.es). quiere 3 cuadernos A5 de los de tapa dura, a 4,50€ c/u, y 2 boligrafos azules a 1,20 la unidad. el envío se lo cobramos a 3,90 como siempre. el num de pedido q me ha dado el sistema antes de caerse es el A-2231, con fecha de 7 de junio de 2026. gracias!! luego t llamo</textarea>
+      <button class="btn" onclick="extraer()">Extraer a JSON →</button>
+      <div class="note">Modo demo: funciona sin clave para el ejemplo de arriba. Para texto libre, activa el modo en vivo más abajo.</div>
+    </div>
+    <div class="card">
+      <h2>2 · Salida estructurada (JSON)</h2>
+      <pre id="output">{ }</pre>
+    </div>
+  </div>
+
+  <div class="schema">
+    <h2>Instrucción y esquema (el corazón del demo)</h2>
+    <p class="note" style="margin-bottom:8px">Esto es lo que se le pasa al modelo. Aquí se define el formato exacto, las reglas y qué hacer si falta un dato. Editable para enseñar tu criterio.</p>
+    <textarea id="prompt">Eres un extractor de datos. Devuelve SOLO un objeto JSON válido, sin texto antes ni después, con esta estructura exacta:
+{
+  "numero_pedido": string,
+  "fecha": "YYYY-MM-DD",
+  "cliente": { "nombre": string, "email": string },
+  "lineas": [ { "producto": string, "cantidad": number, "precio_unitario": number, "subtotal": number } ],
+  "envio": number,
+  "total": number
+}
+Reglas:
+- Normaliza la fecha a formato ISO (YYYY-MM-DD).
+- Usa punto decimal, nunca coma.
+- subtotal = cantidad * precio_unitario.
+- total = suma de subtotales + envio.
+- Si un dato no aparece, usa null. No inventes valores.</textarea>
+  </div>
+
+  <div class="checks">
+    <h2>3 · Validaciones automáticas</h2>
+    <div id="checks"><div class="note">Pulsa "Extraer a JSON" para ver las comprobaciones.</div></div>
+  </div>
+
+  <details class="live">
+    <summary>Modo en vivo (opcional) · usar tu propia API key</summary>
+    <p class="note" style="margin:8px 0">Pega tu clave de Anthropic para procesar texto libre con el modelo. La clave se queda solo en tu navegador, NO la subas a GitHub. Para una demo pública basta con el modo demo de arriba.</p>
+    <input id="apikey" type="password" placeholder="sk-ant-...">
+  </details>
+
+  <footer>Demo de Xabi Moreno · procesamiento documental con IA + validación de salida.</footer>
+</div>
+
+<script>
+// ====== CONFIG ======
+const CONFIG = {
+  model: "claude-haiku-4-5-20251001", // cambia el modelo si quieres
+  // Ejemplo "horneado": resultado esperado para el documento de demo.
+  // Sirve para que la página funcione sin API key cuando alguien la abre.
+  ejemploSalida: {
+    numero_pedido: "A-2231",
+    fecha: "2026-06-07",
+    cliente: { nombre: "Marta López", email: "marta.lopez@correo.es" },
+    lineas: [
+      { producto: "Cuaderno A5 tapa dura", cantidad: 3, precio_unitario: 4.50, subtotal: 13.50 },
+      { producto: "Bolígrafo azul", cantidad: 2, precio_unitario: 1.20, subtotal: 2.40 }
+    ],
+    envio: 3.90,
+    total: 19.80
+  }
+};
+
+async function extraer() {
+  const key = document.getElementById('apikey').value.trim();
+  const texto = document.getElementById('input').value;
+  const out = document.getElementById('output');
+  let data;
+  try {
+    if (key) {
+      out.textContent = "Procesando con el modelo...";
+      data = await llamarClaude(texto, key);
+    } else {
+      data = CONFIG.ejemploSalida; // modo demo sin clave
+    }
+    out.textContent = JSON.stringify(data, null, 2);
+    validar(data);
+  } catch (e) {
+    out.textContent = "Error: " + e.message;
+  }
+}
+
+// Llamada real a la API de Claude (modo en vivo).
+async function llamarClaude(texto, key) {
+  const prompt = document.getElementById('prompt').value;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: CONFIG.model,
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt + "\n\nDOCUMENTO:\n" + texto }]
+    })
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  const txt = json.content.map(b => b.text || "").join("").replace(/```json|```/g, "").trim();
+  return JSON.parse(txt);
+}
+
+// ====== VALIDACIONES ======
+function validar(d) {
+  const box = document.getElementById('checks');
+  const checks = [];
+  const fechaOK = typeof d.fecha === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.fecha);
+  checks.push(["Número de pedido presente", !!d.numero_pedido]);
+  checks.push(["Fecha en formato ISO (YYYY-MM-DD)", fechaOK]);
+  checks.push(["Email del cliente válido", /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.cliente && d.cliente.email)]);
+  let lineasOK = Array.isArray(d.lineas) && d.lineas.length > 0;
+  let sumaSub = 0;
+  if (lineasOK) {
+    d.lineas.forEach(l => {
+      sumaSub += l.subtotal;
+      if (Math.abs(l.cantidad * l.precio_unitario - l.subtotal) > 0.01) lineasOK = false;
+    });
+  }
+  checks.push(["Cada línea: subtotal = cantidad × precio", lineasOK]);
+  const totalOK = Math.abs((sumaSub + (d.envio || 0)) - d.total) < 0.01;
+  checks.push(["Total = suma de subtotales + envío", totalOK]);
+
+  box.innerHTML = checks.map(([label, ok]) =>
+    `<div class="check"><span class="mark ${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'}</span><span>${label}</span></div>`
+  ).join("");
+}
+</script>
+</body>
+</html>
